@@ -1386,6 +1386,7 @@ dependencies = [
  "eframe",
  "egui_extras",
  "jiff",
+ "serde",
 ]
 
 [[package]]
