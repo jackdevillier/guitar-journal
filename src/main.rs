@@ -3,6 +3,7 @@ use egui_extras;
 use chrono::{self, Datelike};
 use jiff::civil::Date;
 use serde::{Serialize, Deserialize};
+use serde_json;
 
 // The main function where our program starts
 fn main() -> Result<(), eframe::Error> {
@@ -45,6 +46,12 @@ impl MyApp {
 
     fn remove_song(&mut self, id: u64) {
         self.songs.retain(|s| s.id != id);
+        self.next_id -= 1;
+        let mut count = 0;
+        for song in &mut self.songs {
+            song.id = count;
+            count += 1;
+        }
     }
 
     // get the current date
@@ -134,6 +141,13 @@ impl eframe::App for MyApp {
 
             if ui.button("Save Entry").clicked() {
                 // do save entry stuff with serde
+                // todo: check if file to insert entry exists
+                /* 
+                 * check if file exists
+                 * if not, create a new file
+                 *     make a file for each day but keep them in folders
+                 *     ../entry_data/xx_xxxx/entries_xx_xx_xxxx.json
+                 */
             }
         });
 

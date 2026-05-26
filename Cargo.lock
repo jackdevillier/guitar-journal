@@ -1387,6 +1387,7 @@ dependencies = [
  "egui_extras",
  "jiff",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
