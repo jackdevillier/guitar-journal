@@ -23,8 +23,6 @@ struct Song {
 // This struct holds the data (state) for our application.
 #[derive(Default)]
 struct MyApp {
-    label: String,
-    value: f32,
     date: Date,
     window_open: bool,
     time_played_minutes: u8,
@@ -32,6 +30,7 @@ struct MyApp {
     songs: Vec<Song>,
     next_id: u64,
     chords: String,
+    techniques: String,
 }
 
 impl MyApp {
@@ -62,14 +61,14 @@ impl eframe::App for MyApp {
     // The `update` function is called repeatedly, once per frame.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         ui.heading("Guitar Journal");
-        ui.horizontal(|ui| {
-            ui.label("Write something: ");
-            ui.text_edit_singleline(&mut self.label);
-        });
-        ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-        if ui.button("Increment").clicked() {
-            self.value += 1.0;
-        }
+        // ui.horizontal(|ui| {
+        //     ui.label("Write something: ");
+        //     ui.text_edit_singleline(&mut self.label);
+        // });
+        // ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
+        // if ui.button("Increment").clicked() {
+        //     self.value += 1.0;
+        // }
 
         let mut add_clicked = false;
         let mut id_to_remove = None;
@@ -125,10 +124,17 @@ impl eframe::App for MyApp {
             });
 
             // guitar techniques: arp, plucking, hammer on
-
+            ui.horizontal(|ui| {
+                ui.label("Techniques Used: ");
+                ui.text_edit_singleline(&mut self.techniques)
+            });
 
             // new ideas for laters: scale shapes, triads, tuning
 
+
+            if ui.button("Save Entry").clicked() {
+                // do save entry stuff with serde
+            }
         });
 
         if add_clicked {
@@ -140,14 +146,14 @@ impl eframe::App for MyApp {
         }
         
         if ui.button("New Entry").clicked() {
+            self.window_open = !self.window_open;
             self.date = self.get_date();
             self.time_played_minutes = 0;
             self.time_played_hours = 0;
-            self.window_open = true;
             self.songs.clear();
             self.chords = "".to_string();
         }
-        ui.label(format!("Hello '{}', value: {}", self.label, self.value));
+        // ui.label(format!("Hello '{}', value: {}", self.label, self.value));
     }
 
 }
