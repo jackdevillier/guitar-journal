@@ -4,6 +4,8 @@ use chrono::{self, Datelike};
 use jiff::civil::Date;
 use serde::{Serialize, Deserialize};
 use serde_json;
+use std::fs::{File, OpenOptions, create_dir, exists, remove_dir};
+use std::io::{BufReader, BufWriter, Write};
 
 // The main function where our program starts
 fn main() -> Result<(), eframe::Error> {
@@ -30,6 +32,18 @@ struct MyApp {
     time_played_hours: u8,
     songs: Vec<Song>,
     next_id: u64,
+    chords: String,
+    techniques: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GuitarEntry {
+    date_day: i8,
+    date_month: i8,
+    date_year: i16,
+    time_played_minutes: u8,
+    time_played_hours: u8,
+    songs: Vec<String>,
     chords: String,
     techniques: String,
 }
@@ -140,14 +154,59 @@ impl eframe::App for MyApp {
 
 
             if ui.button("Save Entry").clicked() {
+                // check if the entry has a valid length of time practiced
                 // do save entry stuff with serde
+                let mut ser_songs: Vec<String> = Vec::new();
+                for song in &mut self.songs {
+                    ser_songs.push(format!("{}|{}", song.artist, song.song));
+                }
+                // create guitar entry struct
+                let entry = GuitarEntry {
+                    date_day: self.date.day(),
+                    date_month: self.date.month(),
+                    date_year: self.date.year(),
+                    time_played_minutes: self.time_played_minutes,
+                    time_played_hours: self.time_played_hours,
+                    songs: ser_songs,
+                    chords: self.chords.clone(),
+                    techniques: self.techniques.clone()
+                };
+
                 // todo: check if file to insert entry exists
                 /* 
                  * check if file exists
                  * if not, create a new file
                  *     make a file for each day but keep them in folders
-                 *     ../entry_data/xx_xxxx/entries_xx_xx_xxxx.json
+                 *     ../entry_data/YYYY/MM/entries_MM_DD_YYYY.jsonl
                  */
+
+                let entry_path = "C:/Users/jdevi/local_projects/guitar-journal/entry_data";
+
+                // check year folder exists; make one if not
+                if !exists(format!("{}/{}", entry_path, entry.date_year)).unwrap() {
+                    let _ = create_dir(format!("{}/{}", entry_path, entry.date_year));
+                }
+
+                let json_path = format!("{}/{}/{}", entry_path, entry.date_year, entry.date_month);
+                // check month folder exists; make one if not
+                if !exists(&json_path).unwrap() {
+                    let _ = create_dir(&json_path);
+                }
+                // check day json file exists; make one if not
+                let file = OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .create(true)
+                    .open(format!("{}/entries_{}_{}_{}.jsonl", json_path, entry.date_month, entry.date_day, entry.date_year))
+                    .expect("Failed to open the file");
+
+                let mut writer = BufWriter::new(file);
+
+                let json_str = serde_json::to_string(&entry).unwrap();
+
+                let _ = serde_json::to_writer(&mut writer, &json_str).unwrap();
+                let _ = writer.write_all(b"\n").unwrap();
+
             }
         });
 
