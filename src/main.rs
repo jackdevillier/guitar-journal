@@ -4,8 +4,18 @@ use chrono::{self, Datelike};
 use jiff::civil::Date;
 use serde::{Serialize, Deserialize};
 use serde_json;
+use serde_json::Value::Null;
+use serde_json::map::Entry;
 use std::fs::{File, OpenOptions, create_dir, exists, remove_dir};
 use std::io::{BufReader, BufWriter, Write};
+
+/* 
+ * TODO:
+ * bufreader
+ * delete entries
+ * create view 
+ * 
+ */
 
 // The main function where our program starts
 fn main() -> Result<(), eframe::Error> {
@@ -27,7 +37,7 @@ struct Song {
 #[derive(Default)]
 struct MyApp {
     date: Date,
-    window_open: bool,
+    entry_window_open: bool,
     time_played_minutes: u8,
     time_played_hours: u8,
     songs: Vec<Song>,
@@ -49,6 +59,29 @@ struct GuitarEntry {
 }
 
 impl MyApp {
+
+    fn get_entries_for_day(&mut self, date: Date) -> Vec<GuitarEntry> {
+        let mut res: Vec<GuitarEntry> = Vec::new();
+        let entry_path = "C:/Users/jdevi/local_projects/guitar-journal/entry_data";
+
+        // check year folder exists; make one if not
+        if exists(format!("{}/{}", entry_path, date.year())).unwrap() {
+            let json_path = format!("{}/{}/{}", entry_path, date.year(), date.month());
+            // check month folder exists; make one if not
+            if exists(&json_path).unwrap() {
+                let file = File::open(format!("{}/entries_{}_{}_{}.jsonl", json_path, date.month(), date.day(), date.year())).expect("File does not exist");
+                let mut reader = BufReader::new(file);
+
+                let entry: GuitarEntry = serde_json::from_reader(&mut reader).unwrap();
+                // let json_str = serde_json::to_string(&entry).unwrap();
+
+                // let _ = writer.write_all(b"\n").unwrap();
+            }
+        }
+
+        return res;
+    }
+
     fn add_song(&mut self, id: u64) {
         self.songs.push(Song {
             id: id,
@@ -95,7 +128,7 @@ impl eframe::App for MyApp {
         let mut id_to_remove = None;
 
         // FORM FOR NEW JOURNAL ENTRIES
-        egui::Window::new("New Entry").open(&mut self.window_open).show(ui.ctx(), |ui| {
+        egui::Window::new("New Entry").open(&mut self.entry_window_open).show(ui.ctx(), |ui| {
             // ui.heading("New Entry");
             // date
             ui.horizontal(|ui| {
@@ -219,7 +252,7 @@ impl eframe::App for MyApp {
         }
         
         if ui.button("New Entry").clicked() {
-            self.window_open = !self.window_open;
+            self.entry_window_open = !self.entry_window_open;
             self.date = self.get_date();
             self.time_played_minutes = 0;
             self.time_played_hours = 0;
