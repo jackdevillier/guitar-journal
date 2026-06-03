@@ -4,10 +4,8 @@ use chrono::{self, Datelike};
 use jiff::civil::Date;
 use serde::{Serialize, Deserialize};
 use serde_json;
-use serde_json::Value::Null;
-use serde_json::map::Entry;
 use std::fs::{File, OpenOptions, create_dir, exists, remove_dir};
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 
 /* 
  * TODO:
@@ -37,13 +35,22 @@ struct Song {
 #[derive(Default)]
 struct MyApp {
     date: Date,
-    entry_window_open: bool,
+    new_entry_window_open: bool,
     time_played_minutes: u8,
     time_played_hours: u8,
     songs: Vec<Song>,
     next_id: u64,
     chords: String,
     techniques: String,
+    entry_list: EntryListState,
+}
+
+#[derive(Default)]
+struct EntryListState {
+    window_open: bool,
+    date: Date,
+    display_text: String,
+    entries: Vec<GuitarEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -64,18 +71,27 @@ impl MyApp {
         let mut res: Vec<GuitarEntry> = Vec::new();
         let entry_path = "C:/Users/jdevi/local_projects/guitar-journal/entry_data";
 
-        // check year folder exists; make one if not
+        // check year folder exists
         if exists(format!("{}/{}", entry_path, date.year())).unwrap() {
             let json_path = format!("{}/{}/{}", entry_path, date.year(), date.month());
-            // check month folder exists; make one if not
+            // check month folder exists
             if exists(&json_path).unwrap() {
                 let file = File::open(format!("{}/entries_{}_{}_{}.jsonl", json_path, date.month(), date.day(), date.year())).expect("File does not exist");
                 let mut reader = BufReader::new(file);
+                let mut dest: String = String::new();
+                let mut read_size = reader.read_line(&mut dest).unwrap();
+                // let entry: GuitarEntry = serde_json::from_reader(reader).unwrap();
 
-                let entry: GuitarEntry = serde_json::from_reader(&mut reader).unwrap();
-                // let json_str = serde_json::to_string(&entry).unwrap();
-
-                // let _ = writer.write_all(b"\n").unwrap();
+                while read_size > 0 {
+                    // println!("{:?}", read_size);
+                    let inner: String = serde_json::from_str(&dest).unwrap();
+                    let entry: GuitarEntry = serde_json::from_str(&inner).unwrap();
+                    println!("{}/{}/{}, {}hr{}min", entry.date_month, entry.date_day, entry.date_year, entry.time_played_hours, entry.time_played_minutes);
+                    res.push(entry);
+                    dest.clear();
+                    read_size = reader.read_line(&mut dest).unwrap();
+                }
+                return res;
             }
         }
 
@@ -126,9 +142,10 @@ impl eframe::App for MyApp {
 
         let mut add_clicked = false;
         let mut id_to_remove = None;
+        let mut save_clicked = false;
 
         // FORM FOR NEW JOURNAL ENTRIES
-        egui::Window::new("New Entry").open(&mut self.entry_window_open).show(ui.ctx(), |ui| {
+        egui::Window::new("New Entry").open(&mut self.new_entry_window_open).show(ui.ctx(), |ui| {
             // ui.heading("New Entry");
             // date
             ui.horizontal(|ui| {
@@ -239,9 +256,13 @@ impl eframe::App for MyApp {
 
                 let _ = serde_json::to_writer(&mut writer, &json_str).unwrap();
                 let _ = writer.write_all(b"\n").unwrap();
-
+                save_clicked = true;
             }
         });
+        
+        if save_clicked {
+            self.new_entry_window_open = !self.new_entry_window_open;
+        }
 
         if add_clicked {
             self.add_song(self.next_id);
@@ -252,14 +273,22 @@ impl eframe::App for MyApp {
         }
         
         if ui.button("New Entry").clicked() {
-            self.entry_window_open = !self.entry_window_open;
+            self.new_entry_window_open = !self.new_entry_window_open;
             self.date = self.get_date();
             self.time_played_minutes = 0;
             self.time_played_hours = 0;
             self.songs.clear();
             self.chords = "".to_string();
         }
-        // ui.label(format!("Hello '{}', value: {}", self.label, self.value));
+
+        if ui.button("Fetch Today's Entries").clicked() {
+            let date = self.get_date();
+            let entry = self.get_entries_for_day(date);
+        }
+
+        // ui.
+        ui.heading("Entry Display");
+
     }
 
 }
