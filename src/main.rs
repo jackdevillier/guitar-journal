@@ -4,6 +4,7 @@ use chrono::{self, Datelike};
 use jiff::civil::Date;
 use serde::{Serialize, Deserialize};
 use serde_json;
+use std::env;
 use std::fs::{File, OpenOptions, create_dir, exists, remove_dir};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 
@@ -31,9 +32,15 @@ struct Song {
     song: String
 }
 
+struct DisplayEntry {
+    id: u64,
+    entry: GuitarEntry,
+}
+
 // This struct holds the data (state) for our application.
 #[derive(Default)]
 struct MyApp {
+    defaults_assigned: bool,
     date: Date,
     new_entry_window_open: bool,
     time_played_minutes: u8,
@@ -42,7 +49,7 @@ struct MyApp {
     next_id: u64,
     chords: String,
     techniques: String,
-    entry_list: EntryListState,
+    display: EntryListState,
 }
 
 #[derive(Default)]
@@ -52,6 +59,8 @@ struct EntryListState {
     display_text: String,
     entries: Vec<GuitarEntry>,
 }
+
+
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GuitarEntry {
@@ -66,16 +75,55 @@ struct GuitarEntry {
 }
 
 impl MyApp {
+    // fn song_str_to_struct(&mut self, song: String) -> Song {
+    //     let mut song_parts = song.split("|");
+    //     let mut res: Song = Song {id: 0, artist: "".to_string(), song: "".to_string()};
+    //     res.artist = song_parts.next().unwrap().to_string();
+    //     res.song = song_parts.next().unwrap().to_string();
+    //     return res;
+    // }
+
+    fn entry_to_string(&mut self, entry: GuitarEntry, with_date: bool) -> String {
+        let mut res: String = String::from("");
+        if with_date {
+            res += &format!("{}/{}/{}\n", entry.date_month, entry.date_day, entry.date_year);
+        }
+        /*
+            chords: String,
+            techniques: String,
+         */
+        res += &format!("Time Played: {} hours, {} minutes\n", entry.time_played_hours, entry.time_played_minutes);
+
+        // add songs
+        if entry.songs.len() > 0 {
+            res += &format!("{} songs:\n", entry.songs.len());
+            for song in entry.songs {
+                let mut song_parts = song.split("|");
+                res += &format!(" • {} - {}\n", song_parts.next().unwrap().to_string(), song_parts.next().unwrap().to_string());
+            }
+        }
+
+        // chords
+        if entry.chords.len() > 0 {
+            res += &format!("Chords Practiced: {}\n", entry.chords);
+        }
+
+        // techniques
+        if entry.techniques.len() > 0 {
+            res += &format!("Techniques Used: {}\n", entry.techniques);
+        }
+        return res;
+    }
 
     fn get_entries_for_day(&mut self, date: Date) -> Vec<GuitarEntry> {
         let mut res: Vec<GuitarEntry> = Vec::new();
-        let entry_path = "C:/Users/jdevi/local_projects/guitar-journal/entry_data";
-
+        let curr_path_buf = env::current_dir().unwrap();
+        let entry_path = curr_path_buf.as_os_str().to_str().unwrap().to_owned() + "/entry_data";
         // check year folder exists
         if exists(format!("{}/{}", entry_path, date.year())).unwrap() {
             let json_path = format!("{}/{}/{}", entry_path, date.year(), date.month());
             // check month folder exists
-            if exists(&json_path).unwrap() {
+            if exists(&json_path).unwrap() && exists(format!("{}/entries_{}_{}_{}.jsonl", json_path, date.month(), date.day(), date.year())).unwrap() {
                 let file = File::open(format!("{}/entries_{}_{}_{}.jsonl", json_path, date.month(), date.day(), date.year())).expect("File does not exist");
                 let mut reader = BufReader::new(file);
                 let mut dest: String = String::new();
@@ -86,7 +134,7 @@ impl MyApp {
                     // println!("{:?}", read_size);
                     let inner: String = serde_json::from_str(&dest).unwrap();
                     let entry: GuitarEntry = serde_json::from_str(&inner).unwrap();
-                    println!("{}/{}/{}, {}hr{}min", entry.date_month, entry.date_day, entry.date_year, entry.time_played_hours, entry.time_played_minutes);
+                    // println!("{}/{}/{}, {}hr{}min", entry.date_month, entry.date_day, entry.date_year, entry.time_played_hours, entry.time_played_minutes);
                     res.push(entry);
                     dest.clear();
                     read_size = reader.read_line(&mut dest).unwrap();
@@ -130,6 +178,10 @@ impl MyApp {
 impl eframe::App for MyApp {
     // The `update` function is called repeatedly, once per frame.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if self.defaults_assigned == false {
+            self.display.date = self.get_date();
+            self.defaults_assigned = true;
+        }
         ui.heading("Guitar Journal");
         // ui.horizontal(|ui| {
         //     ui.label("Write something: ");
@@ -230,8 +282,15 @@ impl eframe::App for MyApp {
                  *     ../entry_data/YYYY/MM/entries_MM_DD_YYYY.jsonl
                  */
 
-                let entry_path = "C:/Users/jdevi/local_projects/guitar-journal/entry_data";
+                let curr_path_buf = env::current_dir().unwrap();
+                // println!("{}", curr_path_buf.as_os_str().to_str().unwrap());
 
+                let entry_path = curr_path_buf.as_os_str().to_str().unwrap().to_owned() + "/entry_data";
+
+                // check entry_data folder exists; make one if not
+                if !exists(format!("{}", entry_path)).unwrap() {
+                    let _ = create_dir(format!("{}", entry_path));
+                }
                 // check year folder exists; make one if not
                 if !exists(format!("{}/{}", entry_path, entry.date_year)).unwrap() {
                     let _ = create_dir(format!("{}/{}", entry_path, entry.date_year));
@@ -278,18 +337,33 @@ impl eframe::App for MyApp {
             self.time_played_minutes = 0;
             self.time_played_hours = 0;
             self.songs.clear();
-            self.chords = "".to_string();
+            self.chords.clear();
+            self.techniques.clear();
         }
 
-        if ui.button("Fetch Today's Entries").clicked() {
-            let date = self.get_date();
-            let entry = self.get_entries_for_day(date);
-        }
+        // if ui.button("Fetch Today's Entries").clicked() {
+        //     let date = self.get_date();
+        //     let entry = self.get_entries_for_day(date);
+        // }
 
         // ui.
         ui.heading("Entry Display");
 
+        ui.add(egui_extras::DatePickerButton::new(&mut self.display.date));
+        if ui.button("Display Entries").clicked() {
+            self.display.display_text.clear();
+            // read entries for chosen day
+            let entries = self.get_entries_for_day(self.display.date);
+            // populate text box beneath 
+            let mut is_first_entry = true;
+            for entry in entries {
+                let e: String = self.entry_to_string(entry, is_first_entry);
+                self.display.display_text.push_str(&e);
+                is_first_entry = false;
+            }
+        }
+        ui.label(format!("{}", &mut self.display.display_text));
     }
-
+    
 }
 
