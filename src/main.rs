@@ -12,8 +12,11 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
  * TODO:
  * bufreader
  * delete entries
- * create view 
- * 
+ * create calendar view
+ * - use egui shapes to create calendar boxes
+ * - use date information to update calendar days of week, # days in a month, etc 
+ * daily entry streak
+ * create "saved songs" and "saved guitars" in data to quickly refer to them
  */
 
 // The main function where our program starts
